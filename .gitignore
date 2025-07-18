@@ -1,0 +1,20 @@
+# Terraform local state
+*.tfstate
+*.tfstate.backup
+
+# Crash log
+crash.log
+
+# Terraform provider and plugin binaries
+.terraform/
+
+# Plan files
+*.tfplan
+
+# Ignore variable definitions with sensitive data
+*.tfvars
+
+# Executable files
+*.exe
+*.zip
+*.tar.gz
