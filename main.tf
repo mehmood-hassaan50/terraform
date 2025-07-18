@@ -116,7 +116,6 @@ resource "aws_db_instance" "mysql" {
   engine               = "mysql"
   engine_version       = "8.0"
   instance_class       = "db.t3.micro"
-  name                 = "mydatabase"
   username             = "admin"
   password             = "Password1234"
   parameter_group_name = "default.mysql8.0"
