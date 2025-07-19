@@ -93,7 +93,7 @@ resource "aws_launch_template" "web_template" {
 resource "aws_autoscaling_group" "web_asg" {
   desired_capacity     = 2
   min_size             = 2
-  max_size             = 2
+  max_size             = 3
   vpc_zone_identifier  = [aws_subnet.main.id]
 
   launch_template {
