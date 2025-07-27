@@ -1,41 +1,29 @@
 # VPC
-resource "aws_vpc" "main" {
+resource "aws_vpc" var.vpc {
   cidr_block = "10.0.0.0/16"
 }
 
 # Subnet in us-east-2b
-resource "aws_subnet" "main" {
+resource "aws_subnet" var.subnet {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "us-east-2b"
   map_public_ip_on_launch = true
 }
 
-# Internet Gateway
-resource "aws_internet_gateway" "gw" {
-  vpc_id = aws_vpc.main.id
+resource "aws_s3_bucket" var.s3bucket {
+  bucket = "mys3bucketHassaan"
 }
 
-# Route Table
-resource "aws_route_table" "rtable" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.gw.id
-  }
+resource "aws_s3_bucket_acl" var.s3bucketacl {
+  bucket = aws_s3_bucket.mybucket.id
+  acl    = "private"
 }
 
-# Associate Route Table
-resource "aws_route_table_association" "assoc" {
-  subnet_id      = aws_subnet.main.id
-  route_table_id = aws_route_table.rtable.id
-}
-
-# Shared Security Group for EC2 and RDS
-resource "aws_security_group" "shared_sg" {
-  name        = "shared-sg"
-  description = "Allow SSH and MySQL"
+# Security Group for EC2
+resource "aws_security_group" var.sec_ec2 {
+  name        = "ec2_sg"
+  description = "Allow SSH"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -45,9 +33,23 @@ resource "aws_security_group" "shared_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Security Group for RDS
+resource "aws_security_group" var.sec_rds {
+  name        = "rds_sg"
+  description = "Allow Postgres"
+  vpc_id      = aws_vpc.main.id
+
   ingress {
-    from_port   = 3306
-    to_port     = 3306
+    from_port   = 5432
+    to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = ["10.0.0.0/16"]
   }
@@ -77,7 +79,7 @@ data "aws_ami" "amazon_linux_2" {
 }
 
 # Launch Template
-resource "aws_launch_template" "web_template" {
+resource "aws_launch_template" var.launch_template {
   name_prefix   = "web-"
   image_id      = data.aws_ami.amazon_linux_2.id
   instance_type = "t2.micro"
@@ -89,38 +91,37 @@ resource "aws_launch_template" "web_template" {
   }
 }
 
-# Auto Scaling Group
-resource "aws_autoscaling_group" "web_asg" {
-  desired_capacity     = 2
-  min_size             = 2
-  max_size             = 3
-  vpc_zone_identifier  = [aws_subnet.main.id]
-
-  launch_template {
-    id      = aws_launch_template.web_template.id
-    version = "$Latest"
-  }
-
-  force_delete              = true
-}
-
-# RDS Subnet Group
-resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds-subnet-group"
-  subnet_ids = [aws_subnet.main.id]
-}
-
-# RDS Instance (MySQL)
-resource "aws_db_instance" "mysql" {
+# RDS Instance (Postgres)
+resource "aws_db_instance" var.postgresrds {
   allocated_storage    = 20
-  engine               = "mysql"
+  engine               = "postgres"
   engine_version       = "8.0"
   instance_class       = "db.t3.micro"
   username             = "admin"
-  password             = var.password
+  password             = random_password.db_password.result
   parameter_group_name = "default.mysql8.0"
   db_subnet_group_name = aws_db_subnet_group.rds_subnet_group.name
   vpc_security_group_ids = [aws_security_group.shared_sg.id]
   skip_final_snapshot  = true
   publicly_accessible  = false
+}
+
+resource "random_password" "db_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+ 
+
+resource "aws_secretsmanager_secret" "db_secret" {
+  name                    = "db-password-secret"
+  recovery_window_in_days = 7
+}
+
+ 
+
+resource "aws_secretsmanager_secret_version" "db_secret_version" {
+  secret_id     = aws_secretsmanager_secret.db_secret.id
+  secret_string = jsonencode({ username = "admin", password = random_password.db_password.result })
 }
